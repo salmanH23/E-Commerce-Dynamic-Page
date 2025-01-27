@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Product Page with Stripe Payment</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f9;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .product-card {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px;
+        background: #fff;
+        transition: transform 0.2s;
+      }
+      .product-card:hover {
+        transform: scale(1.05);
+      }
+      .products-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+      }
+      .product-card img {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+      }
+      .product-card h3 {
+        margin: 10px 0;
+      }
+      .product-card p {
+        margin: 5px 0;
+        color: gray;
+      }
+      .product-card button {
+        padding: 10px 15px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .product-card button:hover {
+        background-color: #0056b3;
+      }
+      .cart {
+        margin-top: 30px;
+      }
+      .cart h2 {
+        margin-bottom: 10px;
+      }
+      .cart-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+      }
+      .checkout-button {
+        padding: 10px 15px;
+        background-color: #28a745;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        border: none;
+        margin-bottom: 10px;
+      }
+      .btn-r {
+        width: 100px;
+        background: pink;
+        padding: 5px;
+        border-radius: 10px;
+        border: none;
+        outline: none;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Product Page with Stripe Payment</h1>
+      <div class="products-grid" id="products">
+        <!-- Display Product here -->
+      </div>
+      <div class="cart">
+        <h2>Shopping Cart</h2>
+        <div id="cart-items">
+          <!-- Cart items will be displayed here -->
+        </div>
+        <p>Total Price: $<span id="total-price">0</span></p>
+        <button class="checkout-button" id="checkout-button">Checkout</button>
+      </div>
+      <!-- Stripe Card Element will go here -->
+      <div id="card-element"></div>
+    </div>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+      const stripe = Stripe(
+        "pk_test_51Qln1KDsrecxE3DZ0BkThuxqvym7nAnqrwkFlSdEEehtF84Rs7MiJ0jjNTvuALF3eRFBoMVxs4rOFEoX63nP4s4U00iIONzo0r"
+      );
+      const elements = stripe.elements();
+      const cardElement = elements.create("card");
+      cardElement.mount("#card-element"); // Mounts the card element to the div
+
+      const products = [
+        { id: 1, name: "Olive Oil", price: 100, image: "image.png" },
+        { id: 2, name: "Camera", price: 200, image: "download.png" },
+        { id: 3, name: "Spray", price: 150, image: "spray.png" },
+        { id: 4, name: "Clock ", price: 250, image: "clock.png" },
+      ];
+      const cart = [];
+      const productsContainer = document.getElementById("products");
+      const cartContainer = document.getElementById("cart-items");
+      const totalPriceElement = document.getElementById("total-price");
+
+      // Display Products on the Page
+      function displayProducts() {
+        products.forEach((product) => {
+          const productDiv = document.createElement("div");
+          productDiv.classList.add("product-card");
+          productDiv.innerHTML = `
+        <img src="${product.image}" alt="${product.name}">
+        <h3>${product.name}</h3>
+        <p>Price: $${product.price}</p>
+        <button onclick="addToCart(${product.id})">Add to Cart</button>
+      `;
+          productsContainer.appendChild(productDiv);
+        });
+      }
+
+      // Add Product to Cart
+      function addToCart(productId) {
+        const product = products.find((p) => p.id === productId);
+        cart.push(product);
+        displayCart();
+      }
+
+      // Remove Product from Cart
+      function removeFromCart(productId) {
+        const productIndex = cart.findIndex((p) => p.id === productId);
+        if (productIndex !== -1) {
+          cart.splice(productIndex, 1); // Remove product from cart array
+        }
+        displayCart(); // Re-render the cart
+      }
+
+      // Display Cart Items
+      function displayCart() {
+        cartContainer.innerHTML = "";
+        let totalPrice = 0;
+
+        cart.forEach((item, index) => {
+          const cartItemDiv = document.createElement("div");
+          cartItemDiv.classList.add("cart-item");
+          cartItemDiv.innerHTML = `
+        <span>${item.name} - $${item.price}</span>
+        <button class="btn-r" onclick="removeFromCart(${item.id})">Remove</button>
+      `;
+          cartContainer.appendChild(cartItemDiv);
+          totalPrice += item.price;
+        });
+
+        totalPriceElement.textContent = totalPrice;
+      }
+
+      // Handle Checkout
+      document
+        .getElementById("checkout-button")
+        .addEventListener("click", async () => {
+          const totalAmount = cart.reduce(
+            (total, item) => total + item.price,
+            0
+          );
+          try {
+            const response = await fetch(
+              "http://localhost:4242/create-payment-intent",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ amount: totalAmount }),
+              }
+            );
+
+            const { clientSecret } = await response.json();
+            console.log("Received client secret:", clientSecret);
+
+            if (!clientSecret) {
+              throw new Error("Client Secret not received from backend.");
+            }
+
+            const result = await stripe.confirmCardPayment(clientSecret, {
+              payment_method: {
+                card: cardElement,
+              },
+            });
+            if (result.error) {
+              alert(result.error.message);
+            } else if (result.paymentIntent.status === "succeeded") {
+              alert("Payment successful!");
+            }
+          } catch (error) {
+            console.error(error);
+            alert("Payment failed!");
+          }
+        });
+
+      // Initialize Page
+      displayProducts();
+    </script>
+  </body>
+</html>
